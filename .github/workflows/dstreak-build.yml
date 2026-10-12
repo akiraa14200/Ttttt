@@ -63,6 +63,19 @@ jobs:
             echo "No direct wakelock_plus dependency found; continuing."
           fi
 
+      - name: Patch source APIs for Flutter 3.35 compatibility
+        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # TickerMode.of(context) is the compatible bool-returning API.
+          grep -RIl --include='*.dart' 'TickerMode.valuesOf(context).enabled' lib | xargs -r sed -i 's/TickerMode\.valuesOf(context)\.enabled/TickerMode.of(context)/g'
+          # Older Flutter SnackBar does not accept the newer persist argument; false is its default.
+          if [ -f lib/core/utils/app_snackbar.dart ]; then
+            sed -i '/^[[:space:]]*persist:[[:space:]]*false,[[:space:]]*$/d' lib/core/utils/app_snackbar.dart
+          fi
+          echo 'Applied Flutter 3.35-compatible source API substitutions.'
+
       - name: Resolve Flutter dependencies
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
         run: flutter pub get
