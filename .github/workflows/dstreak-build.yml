@@ -56,40 +56,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p = Path('pubspec.yaml')
-          s = p.read_text()
-          # Flutter 3.35.7 ships Dart 3.9; wakelock_plus 1.5+ requires Dart 3.10.
-          s2, n = re.subn(r'(?m)^(\s*wakelock_plus\s*:\s*).+
-      - name: Build DStreak debug APK
-        working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
-        run: flutter build apk --debug
-
-      - name: Collect DStreak APK and source
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/output"
-          find "$FLUTTER_PROJECT_DIR/build/outputs/flutter-apk" -type f -name '*.apk' -exec cp {} "$GITHUB_WORKSPACE/output/" \;
-          test -n "$(find output -type f -name '*.apk' -print -quit)"
-          cp DStreak-source.zip output/
-
-      - name: Upload DStreak APK and source
-        uses: actions/upload-artifact@v4
-        with:
-          name: DStreak-APK-and-source
-          path: output/*
-          if-no-files-found: error
-          retention-days: 14
-, r'\1^1.4.0', s, count=1)
-          if n:
-              p.write_text(s2)
-              print('Pinned wakelock_plus to ^1.4.0 for Dart 3.9 compatibility.')
-          else:
-              print('No direct wakelock_plus entry found; leaving pubspec unchanged.')
-          PY
+          if grep -qE '^[[:space:]]*wakelock_plus[[:space:]]*:' pubspec.yaml; then
+            sed -i -E 's/^([[:space:]]*wakelock_plus[[:space:]]*:[[:space:]]*).*/\1^1.4.0/' pubspec.yaml
+            echo "Pinned wakelock_plus to ^1.4.0 for Dart 3.9 compatibility."
+          else
+            echo "No direct wakelock_plus dependency found; continuing."
+          fi
 
       - name: Resolve Flutter dependencies
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
