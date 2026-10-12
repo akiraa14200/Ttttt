@@ -1,0 +1,71 @@
+name: DStreak Android Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'DStreak-source.zip.part*'
+      - '.github/workflows/dstreak-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source parts
+        uses: actions/checkout@v4
+
+      - name: Verify and combine ZIP parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for part in 01 02 03 04 05; do
+            test -s "DStreak-source.zip.part${part}" || { echo "Missing part ${part}"; exit 1; }
+          done
+          cat DStreak-source.zip.part01 DStreak-source.zip.part02 DStreak-source.zip.part03 DStreak-source.zip.part04 DStreak-source.zip.part05 > DStreak-source.zip
+          unzip -t DStreak-source.zip
+          mkdir source
+          unzip -q DStreak-source.zip -d source
+          echo "Extracted source files:"
+          find source -maxdepth 3 -type f | head -100
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          WRAPPER="$(find source -type f -name gradlew -print -quit)"
+          if [ -z "$WRAPPER" ]; then
+            echo "No Gradle wrapper (gradlew) found in the extracted project."
+            find source -maxdepth 4 -type f | head -200
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$WRAPPER")"
+          cd "$PROJECT_DIR"
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          find . -type f -path '*/build/outputs/apk/*/*.apk' -exec cp {} "$GITHUB_WORKSPACE/output/" \;
+
+      - name: Upload DStreak APK and combined source
+        uses: actions/upload-artifact@v4
+        with:
+          name: DStreak-APK-and-source
+          path: |
+            output/*.apk
+            DStreak-source.zip
+          if-no-files-found: error
+          retention-days: 14
