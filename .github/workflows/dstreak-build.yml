@@ -16,15 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Checkout source parts
+      - name: Checkout DStreak source parts
         uses: actions/checkout@v4
 
-      - name: Verify and combine ZIP parts
+      - name: Verify and combine DStreak ZIP parts
         shell: bash
         run: |
           set -euo pipefail
           for part in 01 02 03 04 05; do
-            test -s "DStreak-source.zip.part${part}" || { echo "Missing part ${part}"; exit 1; }
+            test -s "DStreak-source.zip.part${part}" || { echo "Missing DStreak part ${part}"; exit 1; }
           done
           cat DStreak-source.zip.part01 DStreak-source.zip.part02 DStreak-source.zip.part03 DStreak-source.zip.part04 DStreak-source.zip.part05 > DStreak-source.zip
           unzip -t DStreak-source.zip
@@ -32,7 +32,7 @@ jobs:
           unzip -q DStreak-source.zip -d source
           PROJECT_DIR="$(find source -type f -name pubspec.yaml -print -quit | xargs -r dirname)"
           if [ -z "$PROJECT_DIR" ]; then
-            echo "No Flutter pubspec.yaml found in the uploaded source."
+            echo "No Flutter pubspec.yaml found in the DStreak source."
             find source -maxdepth 4 -type f | head -200
             exit 1
           fi
@@ -45,22 +45,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter
+      - name: Set up compatible Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.7'
           cache: true
-          cache-dependency-path: source/streak-main/pubspec.lock
 
       - name: Resolve Flutter dependencies
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
         run: flutter pub get
 
-      - name: Build debug APK
+      - name: Build DStreak debug APK
         working-directory: ${{ env.FLUTTER_PROJECT_DIR }}
         run: flutter build apk --debug
 
-      - name: Collect APK and source
+      - name: Collect DStreak APK and source
         shell: bash
         run: |
           set -euo pipefail
