@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft, Download, Share2, Flag, Check, BookmarkPlus } from 'lucide-react';
 // The application UI and page components are defined below.
-import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
+import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, getAniListTrailerVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AnimeComments } from './components/AnimeComments';
@@ -631,10 +631,23 @@ function VideoPage() {
 
   useEffect(()=>{
     let active=true;
-    getRelatedVideos(1).then(data=>enrichVideoMetadata(data)).then(data=>{
+    const mergeVideos=(incoming:RelatedVideo[])=>{
+      setVideos(current=>{
+        const byId=new Map(current.map(video=>[video.id,video]));
+        incoming.forEach(video=>byId.set(video.id,{...byId.get(video.id),...video}));
+        return [...byId.values()];
+      });
+    };
+    // Render the first-party community feed as soon as Supabase responds.
+    // AniList trailer discovery and YouTube metadata are progressive enhancements.
+    getRelatedVideos(1).then(raw=>{
       if(!active)return;
-      setVideos(data);
-      setHasMore(data.length>0);
+      setVideos(raw);
+      setHasMore(raw.length===40);
+      setLoading(false);
+      void enrichVideoMetadata(raw).then(enriched=>{if(active)mergeVideos(enriched);});
+      void getAniListTrailerVideos(1).then(trailers=>{if(active)mergeVideos(trailers);})
+        .catch(e=>{if(active)console.warn('AniList video recommendations unavailable:',e);});
     }).catch(e=>{
       if(active)setError(e instanceof Error?e.message:'Could not load videos.');
     }).finally(()=>{if(active)setLoading(false);});
@@ -701,11 +714,21 @@ function VideoPage() {
     setLoadingMore(true);
     setError('');
     try{
-      const raw=await getRelatedVideos(page+1);
-      const data=await enrichVideoMetadata(raw);
-      setVideos(old=>[...old,...data.filter(video=>!old.some(existing=>existing.id===video.id))]);
-      setPage(current=>current+1);
-      setHasMore(data.length>0);
+      const nextPage=page+1;
+      const raw=await getRelatedVideos(nextPage);
+      setVideos(old=>[...old,...raw.filter(video=>!old.some(existing=>existing.id===video.id))]);
+      setPage(nextPage);
+      setHasMore(raw.length===40);
+      void enrichVideoMetadata(raw).then(enriched=>{
+        setVideos(old=>old.map(video=>enriched.find(item=>item.id===video.id)||video));
+      });
+      // Recommendations never block the next community batch.
+      void getAniListTrailerVideos(nextPage).then(trailers=>{
+        setVideos(old=>{
+          const ids=new Set(old.map(video=>video.id));
+          return [...old,...trailers.filter(video=>!ids.has(video.id))];
+        });
+      }).catch(error=>console.warn('Could not load more AniList video recommendations:',error));
     }catch(e){
       setError(e instanceof Error?e.message:'Could not load more videos.');
     }finally{
