@@ -415,7 +415,82 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
   }, []);
   const embed = videoEmbedUrl(video);
   const thumbnail = videoThumbnail(video);
+  const ambientCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // The canvas stays decorative and outside the thumbnail's clipping box so its
+  // compositor blur can spill behind the player without changing player layout.
+  useEffect(() => {
+    const card = cardRef.current;
+    const canvas = ambientCanvasRef.current;
+    if (!card || !canvas || !nearViewport || !playing) return;
+    const context = canvas.getContext('2d', { alpha: true });
+    if (!context) return;
+
+    let frame = 0;
+    let lastDraw = 0;
+    let visible = document.visibilityState === 'visible';
+    let inViewport = false;
+    let disposed = false;
+    const videoElement = card.querySelector('video');
+    const resize = () => {
+      const width = 160;
+      const height = short ? 284 : 90;
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+    };
+    resize();
+
+    const observer = 'IntersectionObserver' in window
+      ? new IntersectionObserver(entries => {
+          inViewport = entries.some(entry => entry.isIntersecting);
+          if (!inViewport) cancelAnimationFrame(frame);
+          else schedule();
+        }, { rootMargin: '100px' })
+      : null;
+    observer?.observe(card);
+    inViewport = !observer;
+
+    const draw = (time: number) => {
+      if (disposed || !visible || !inViewport) return;
+      if (time - lastDraw >= 40) {
+        lastDraw = time;
+        if (videoElement && !videoElement.paused && videoElement.readyState >= 2) {
+          try {
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+          } catch {
+            // Cross-origin media may forbid sampling; keep the thumbnail glow.
+          }
+        }
+      }
+      frame = requestAnimationFrame(draw);
+    };
+    const schedule = () => {
+      if (!disposed && visible && inViewport && !frame) frame = requestAnimationFrame(draw);
+    };
+    const onVisibility = () => {
+      visible = document.visibilityState === 'visible';
+      if (!visible) { cancelAnimationFrame(frame); frame = 0; }
+      else schedule();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    schedule();
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      document.removeEventListener('visibilitychange', onVisibility);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+    };
+  }, [nearViewport, playing, short]);
+
   return <article ref={cardRef} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
+    <canvas
+      ref={ambientCanvasRef}
+      className={`yt-ambient-glow ${short?'yt-ambient-glow-short':''}`}
+      aria-hidden="true"
+      style={{ backgroundImage: thumbnail ? `url("${thumbnail}")` : 'none' }}
+    />
     {!nearViewport ? <>
       <div className="yt-thumbnail"><div className="yt-skeleton-thumb"/></div>
       <div className="yt-video-info"><span className="yt-skeleton-avatar"/><div className="yt-video-text"><span className="yt-skeleton-line"/><span className="yt-skeleton-line"/></div></div>
