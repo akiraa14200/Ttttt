@@ -81,47 +81,41 @@ const mapRelatedVideo = (row: RelatedVideoRow): RelatedVideo => ({
   actionUrl: row.action_url || row.video_url, sortOrder: row.sort_order || 0, createdAt: row.created_at
 });
 export async function getRelatedVideos(page = 1, titleId?: string): Promise<RelatedVideo[]> {
-  const key = `related-videos:${page}:${titleId || 'all'}`;
-  return cached(key, async () => {
+  return cached(`related-videos:${page}:${titleId || 'all'}`, async () => {
     const from = (page - 1) * 40;
     let request = supabase.from('related_videos').select('id,title_id,legacy_title_id,video_url,platform,video_title,creator_name,creator_avatar_url,action_type,action_url,sort_order,created_at').order('sort_order', { ascending: true }).order('created_at', { ascending: false }).range(from, from + 39);
     if (titleId) request = request.or(`title_id.eq.${titleId},legacy_title_id.eq.${titleId}`);
-
-    // Start the independent AniList work alongside the community-video query.
-    // Previously it started only after Supabase and its title join had completed.
-    const aniListPromise = !titleId
-      ? Promise.allSettled([getAniListAnimeVideos(page), getMangaVideoCatalogue(page)])
-      : Promise.resolve(null);
     const { data, error } = await request;
     throwIf(error);
     const videos = ((data || []) as RelatedVideoRow[]).map(mapRelatedVideo);
     const titleIds = [...new Set(videos.map(video => video.titleId).filter(Boolean))];
+    if (titleIds.length) {
+      const { data: titles, error: titleError } = await supabase.from('titles').select('id,name,cover_url,media_type,release_year,genres').in('id', titleIds);
+      throwIf(titleError);
+      const byId = new Map((titles || []).map((title: any) => [title.id, title]));
+      videos.forEach(video => {
+        const title: any = byId.get(video.titleId);
+        if (title) {
+          video.titleName = title.name; video.titleCover = title.cover_url;
+          video.titleFormat = title.media_type; video.releaseYear = title.release_year;
+          video.genres = title.genres || [];
+        }
+      });
+    }
+    return videos;
+  });
+}
 
-    const titlePromise = titleIds.length
-      ? supabase.from('titles').select('id,name,cover_url,media_type,release_year,genres').in('id', titleIds)
-      : Promise.resolve({ data: [], error: null });
-    const [titleResult, aniListResults] = await Promise.all([titlePromise, aniListPromise]);
-    throwIf(titleResult.error);
-    const byId = new Map(((titleResult.data || []) as any[]).map(title => [title.id, title]));
-    videos.forEach(video => {
-      const title: any = byId.get(video.titleId);
-      if (title) {
-        video.titleName = title.name;
-        video.titleCover = title.cover_url;
-        video.titleFormat = title.media_type;
-        video.releaseYear = title.release_year;
-        video.genres = title.genres || [];
-      }
-    });
-
-    if (!aniListResults) return videos;
-    const [animeResult, mangaResult] = aniListResults;
+export async function getAniListTrailerVideos(page = 1): Promise<RelatedVideo[]> {
+  return cached(`anilist-trailer-videos:${page}`, async () => {
+    const [animeResult, mangaResult] = await Promise.allSettled([
+      getAniListAnimeVideos(page), getMangaVideoCatalogue(page)
+    ]);
     const anime = animeResult.status === 'fulfilled' ? animeResult.value : [];
     const manga = mangaResult.status === 'fulfilled' ? mangaResult.value : [];
-    const knownUrls = new Set(videos.map(video => video.videoUrl));
-    const fromAniList = [...anime, ...manga].flatMap(item => {
-      const trailerId = item.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(item.trailer.id)
-        ? item.trailer.id : '';
+    const knownUrls = new Set<string>();
+    return [...anime, ...manga].flatMap(item => {
+      const trailerId = item.trailer?.site?.toLowerCase() === 'youtube' && /^[a-zA-Z0-9_-]{6,}$/.test(item.trailer.id) ? item.trailer.id : '';
       if (!trailerId) return [];
       const videoUrl = `https://www.youtube.com/watch?v=${trailerId}`;
       if (knownUrls.has(videoUrl)) return [];
@@ -129,29 +123,18 @@ export async function getRelatedVideos(page = 1, titleId?: string): Promise<Rela
       const mediaFormat = item.format || '';
       const country = item.countryOfOrigin || '';
       const titleFormat = /MANGA|NOVEL|ONE_SHOT/.test(mediaFormat)
-        ? (country === 'KR' ? 'Manhwa' : country === 'CN' ? 'Manhua' : 'Manga')
-        : 'Anime';
+        ? (country === 'KR' ? 'Manhwa' : country === 'CN' ? 'Manhua' : 'Manga') : 'Anime';
       const titleName = item.title?.english || item.title?.romaji || item.title?.native || 'Untitled';
       return [{
-        id: `anilist-trailer-${item.id}`,
-        titleId: `anilist:${item.id}`,
-        videoUrl,
-        platform: 'youtube' as const,
-        videoTitle: titleName,
-        creatorName: 'YouTube',
-        creatorAvatarUrl: '',
-        actionType: 'watch' as const,
-        actionUrl: item.siteUrl || videoUrl,
-        sortOrder: 0,
-        createdAt: '1970-01-01T00:00:00.000Z',
-        titleName,
+        id: `anilist-trailer-${item.id}`, titleId: `anilist:${item.id}`, videoUrl,
+        platform: 'youtube' as const, videoTitle: titleName, creatorName: 'YouTube',
+        creatorAvatarUrl: '', actionType: 'watch' as const,
+        actionUrl: item.siteUrl || videoUrl, sortOrder: 0,
+        createdAt: '1970-01-01T00:00:00.000Z', titleName,
         titleCover: item.coverImage?.extraLarge || item.coverImage?.large || '',
-        titleFormat,
-        releaseYear: item.seasonYear,
-        genres: item.genres || []
+        titleFormat, releaseYear: item.seasonYear, genres: item.genres || []
       }];
     });
-    return [...videos, ...fromAniList];
   });
 }
 const mapAniListMedia = (item: import('./anilist').Anime): Anime => {
