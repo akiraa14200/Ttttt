@@ -22,8 +22,8 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
     const host = hostRef.current;
     if (!active || !host) return;
     const foreground = host.querySelector<HTMLIFrameElement>('iframe');
-    const parent = host.parentElement;
-    if (!foreground || !parent) return;
+    const card = host.parentElement;
+    if (!foreground || !card) return;
 
     let foregroundUrl: URL;
     try { foregroundUrl = new URL(foreground.src); } catch { return; }
@@ -54,31 +54,35 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
     duplicate.setAttribute('referrerpolicy', 'origin');
     layer.appendChild(duplicate);
 
-    const parentStyle = getComputedStyle(parent);
-    const previousPosition = parent.style.position;
-    const previousIsolation = parent.style.isolation;
-    if (parentStyle.position === 'static') parent.style.position = 'relative';
-    if (parentStyle.isolation !== 'isolate') parent.style.isolation = 'isolate';
-    parent.insertBefore(layer, host);
+    // The card uses content-visibility/paint containment for feed performance.
+    // A child glow is clipped by that containment, so render the decorative layer
+    // at the document level and track the player in viewport coordinates instead.
+    const previousPosition = card.style.position;
+    const previousZIndex = card.style.zIndex;
+    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+    card.style.zIndex = '2';
+    layer.style.position = 'fixed';
+    layer.style.zIndex = '1';
+    document.body.appendChild(layer);
 
     const place = () => {
-      const p = parent.getBoundingClientRect();
       const h = host.getBoundingClientRect();
-      // Expand evenly around the player: the previous short top overhang made
-      // the glow appear weighted toward the bottom on compact/mobile cards.
-      const spreadX = h.width * 0.24;
-      const spreadY = h.height * 0.34;
-      layer.style.left = `${h.left - p.left + parent.scrollLeft - spreadX}px`;
-      layer.style.top = `${h.top - p.top + parent.scrollTop - spreadY}px`;
+      const spreadX = h.width * 0.30;
+      const spreadY = h.height * 0.48;
+      layer.style.left = `${h.left - spreadX}px`;
+      layer.style.top = `${h.top - spreadY}px`;
       layer.style.width = `${h.width + spreadX * 2}px`;
       layer.style.height = `${h.height + spreadY * 2}px`;
-      layer.style.setProperty('--video-ambient-blur', `${Math.max(34, Math.min(76, h.width * 0.09))}px`);
+      layer.style.setProperty('--video-ambient-blur', `${Math.max(42, Math.min(88, h.width * 0.105))}px`);
     };
     place();
     const resize = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null;
     resize?.observe(host);
     resize?.observe(parent);
     window.addEventListener('resize', place, { passive: true });
+    window.addEventListener('scroll', place, { passive: true, capture: true });
+    window.visualViewport?.addEventListener('resize', place, { passive: true });
+    window.visualViewport?.addEventListener('scroll', place, { passive: true });
 
     let ready = false;
     let lastSeek = 0;
@@ -129,12 +133,15 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
       window.clearInterval(poll);
       window.removeEventListener('message', onMessage);
       window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+      window.visualViewport?.removeEventListener('resize', place);
+      window.visualViewport?.removeEventListener('scroll', place);
       foreground.removeEventListener('load', subscribe);
       duplicate.removeEventListener('load', onFrameLoad);
       resize?.disconnect();
       layer.remove();
-      parent.style.position = previousPosition;
-      parent.style.isolation = previousIsolation;
+      card.style.position = previousPosition;
+      card.style.zIndex = previousZIndex;
     };
   }, [active, hostRef]);
 }
