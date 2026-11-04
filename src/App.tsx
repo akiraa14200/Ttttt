@@ -634,8 +634,7 @@ function videoEmbedUrl(video: RelatedVideo) {
       if (!id && ['embed', 'shorts', 'live', 'v'].includes(parts[0])) id = parts[1];
       if (!id && parts.length === 1) id = parts[0];
       if (!id || !/^[a-zA-Z0-9_-]{6,}$/.test(id)) return '';
-      // Match the known-working AniList trailer player exactly. Avoid enablejsapi/origin
-      // parameters here: this app only needs plain iframe playback, not the JS player API.
+      // Enable the YouTube iframe messaging API so the ambient duplicate can stay in sync.
       return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
     }
 
@@ -651,18 +650,6 @@ function videoEmbedUrl(video: RelatedVideo) {
     }
   } catch { return ''; }
   return '';
-}
-
-function youtubeIdOf(video: RelatedVideo) {
-  try {
-    const url = new URL(video.videoUrl);
-    const host = url.hostname.replace(/^www\./, '').replace(/^m\./, '').toLowerCase();
-    const parts = url.pathname.split('/').filter(Boolean);
-    let id: string | null = null;
-    if (host === 'youtu.be') id = parts[0] || null;
-    else if (host.endsWith('youtube.com') || host.endsWith('youtube-nocookie.com')) id = url.searchParams.get('v') || (['embed','shorts','live','v'].includes(parts[0]) ? parts[1] : null);
-    return id && /^[a-zA-Z0-9_-]{6,}$/.test(id) ? id : null;
-  } catch { return null; }
 }
 
 function videoThumbnail(video: RelatedVideo) {
