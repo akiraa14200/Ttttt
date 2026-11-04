@@ -64,11 +64,15 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
     const place = () => {
       const p = parent.getBoundingClientRect();
       const h = host.getBoundingClientRect();
-      layer.style.left = `${h.left - p.left + parent.scrollLeft - h.width * 0.14}px`;
-      layer.style.top = `${h.top - p.top + parent.scrollTop - h.height * 0.16}px`;
-      layer.style.width = `${h.width * 1.28}px`;
-      layer.style.height = `${h.height * 1.34}px`;
-      layer.style.setProperty('--video-ambient-blur', `${Math.max(28, Math.min(64, h.width * 0.075))}px`);
+      // Expand evenly around the player: the previous short top overhang made
+      // the glow appear weighted toward the bottom on compact/mobile cards.
+      const spreadX = h.width * 0.24;
+      const spreadY = h.height * 0.34;
+      layer.style.left = `${h.left - p.left + parent.scrollLeft - spreadX}px`;
+      layer.style.top = `${h.top - p.top + parent.scrollTop - spreadY}px`;
+      layer.style.width = `${h.width + spreadX * 2}px`;
+      layer.style.height = `${h.height + spreadY * 2}px`;
+      layer.style.setProperty('--video-ambient-blur', `${Math.max(34, Math.min(76, h.width * 0.09))}px`);
     };
     place();
     const resize = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null;
