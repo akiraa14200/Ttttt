@@ -54,23 +54,24 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
     duplicate.setAttribute('referrerpolicy', 'origin');
     layer.appendChild(duplicate);
 
-    // The card uses content-visibility/paint containment for feed performance.
-    // A child glow is clipped by that containment, so render the decorative layer
-    // at the document level and track the player in viewport coordinates instead.
-    const previousPosition = card.style.position;
-    const previousZIndex = card.style.zIndex;
-    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
-    card.style.zIndex = '2';
-    layer.style.position = 'fixed';
-    layer.style.zIndex = '1';
-    document.body.appendChild(layer);
+    // Mount the duplicate directly inside the thumbnail as its background.
+    // This guarantees it shares the player's stacking context and cannot cover it.
+    const previousPosition = host.style.position;
+    const previousIsolation = host.style.isolation;
+    const previousOverflow = host.style.overflow;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    host.style.isolation = 'isolate';
+    host.style.overflow = 'visible';
+    layer.style.position = 'absolute';
+    layer.style.zIndex = '0';
+    host.insertBefore(layer, host.firstChild);
 
     const place = () => {
       const h = host.getBoundingClientRect();
       const spreadX = h.width * 0.30;
       const spreadY = h.height * 0.48;
-      layer.style.left = `${h.left - spreadX}px`;
-      layer.style.top = `${h.top - spreadY}px`;
+      layer.style.left = `${-spreadX}px`;
+      layer.style.top = `${-spreadY}px`;
       layer.style.width = `${h.width + spreadX * 2}px`;
       layer.style.height = `${h.height + spreadY * 2}px`;
       layer.style.setProperty('--video-ambient-blur', `${Math.max(42, Math.min(88, h.width * 0.105))}px`);
@@ -78,7 +79,6 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
     place();
     const resize = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null;
     resize?.observe(host);
-    resize?.observe(card);
     window.addEventListener('resize', place, { passive: true });
     window.addEventListener('scroll', place, { passive: true, capture: true });
     window.visualViewport?.addEventListener('resize', place, { passive: true });
