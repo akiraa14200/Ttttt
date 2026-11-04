@@ -589,17 +589,20 @@ body{padding-bottom:104px}
 }
 
 
-/* Decorative YouTube-like ambient glow; independent of the player controls/layout. */
+/* Decorative ambient layer; hidden until this card's player is opened. */
 .yt-video-card{position:relative;isolation:isolate}
 .yt-ambient-glow{
-  position:absolute;z-index:0;top:0;left:0;width:100%;height:auto;
-  aspect-ratio:16/9;display:block;pointer-events:none;user-select:none;
+  position:absolute;z-index:0;top:-12px;left:-12px;
+  width:calc(100% + 24px);height:auto;aspect-ratio:16/9;
+  display:block;pointer-events:none;user-select:none;
   background-position:center;background-size:cover;background-repeat:no-repeat;
-  opacity:.62;filter:blur(88px) saturate(2.1) brightness(1.12);
-  transform:scale(1.19);transform-origin:center;will-change:filter,transform;
+  opacity:0;filter:blur(88px) saturate(2.1) brightness(1.12);
+  transform:scale(1.12);transform-origin:center;
+  transition:opacity .18s ease;will-change:opacity,filter;
 }
+.yt-ambient-glow.yt-ambient-glow-active{opacity:.68}
 .yt-ambient-glow-short{aspect-ratio:9/16}
 .yt-thumbnail{position:relative;z-index:1}
 @media(prefers-reduced-motion:reduce){
-  .yt-ambient-glow{filter:blur(65px) saturate(1.5);transform:scale(1.1);will-change:auto}
+  .yt-ambient-glow{filter:blur(65px) saturate(1.5);transform:scale(1.08);transition:none;will-change:auto}
 }
