@@ -9,6 +9,7 @@ import { AnimeComments } from './components/AnimeComments';
 import { AdminWorkspace } from './components/AdminWorkspace';
 import './components/admin-workspace.css';
 import { useAmbientGlow } from './components/AmbientGlow';
+import { useVideoAmbientLight } from './components/VideoAmbientLight';
 import { youtubeAmbientFrames } from './lib/ambient';
 import { RichText } from './components/RichText';
 import { readPersisted, writePersisted } from './lib/persist';
@@ -635,7 +636,7 @@ function videoEmbedUrl(video: RelatedVideo) {
       if (!id || !/^[a-zA-Z0-9_-]{6,}$/.test(id)) return '';
       // Match the known-working AniList trailer player exactly. Avoid enablejsapi/origin
       // parameters here: this app only needs plain iframe playback, not the JS player API.
-      return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0`;
+      return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
     }
 
     if (host === 'dai.ly' || host.endsWith('dailymotion.com')) {
@@ -707,8 +708,7 @@ function LazyVideoCard({ video, short, playing, onPlay, saved = false, onToggleS
   const embed = videoEmbedUrl(video);
   const thumbnail = videoThumbnail(video);
   const thumbRef = useRef<HTMLDivElement>(null);
-  const ambientFrames = useMemo(() => { const yt = youtubeAmbientFrames(youtubeIdOf(video)); return yt.length ? yt : [thumbnail].filter(Boolean); }, [video.videoUrl, thumbnail]);
-  useAmbientGlow(thumbRef, nearViewport && playing && !!embed, { frames: ambientFrames, assumePlaying: true });
+  useVideoAmbientLight(thumbRef, nearViewport && playing && !!embed);
   const moreRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const tabActive = useTabActive();
