@@ -432,9 +432,12 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
     let inViewport = false;
     let disposed = false;
     const videoElement = card.querySelector('video');
+    // YouTube iframes are cross-origin: their thumbnail supplies the CSS glow,
+    // while this sampling loop is reserved for accessible local HTML5 video.
+    if (!videoElement) return;
     const resize = () => {
-      const width = 160;
-      const height = short ? 284 : 90;
+      const width = short ? 90 : 160;
+      const height = short ? 160 : 90;
       if (canvas.width !== width) canvas.width = width;
       if (canvas.height !== height) canvas.height = height;
     };
@@ -450,23 +453,35 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
     observer?.observe(card);
     inViewport = !observer;
 
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+    };
     const draw = (time: number) => {
-      if (disposed || !visible || !inViewport) return;
-      if (time - lastDraw >= 40) {
+      if (disposed || !visible || !inViewport || videoElement.paused || videoElement.ended) {
+        stop();
+        return;
+      }
+      if (time - lastDraw >= 40 && videoElement.readyState >= 2) {
         lastDraw = time;
-        if (videoElement && !videoElement.paused && videoElement.readyState >= 2) {
-          try {
-            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-          } catch {
-            // Cross-origin media may forbid sampling; keep the thumbnail glow.
-          }
+        try {
+          context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        } catch {
+          // Cross-origin media may forbid sampling; keep the thumbnail glow.
         }
       }
       frame = requestAnimationFrame(draw);
     };
     const schedule = () => {
-      if (!disposed && visible && inViewport && !frame) frame = requestAnimationFrame(draw);
+      if (!disposed && visible && inViewport && !videoElement.paused && !videoElement.ended && !frame) {
+        frame = requestAnimationFrame(draw);
+      }
     };
+    const onPause = () => stop();
+    videoElement.addEventListener('play', schedule);
+    videoElement.addEventListener('playing', schedule);
+    videoElement.addEventListener('pause', onPause);
+    videoElement.addEventListener('ended', onPause);
     const onVisibility = () => {
       visible = document.visibilityState === 'visible';
       if (!visible) { cancelAnimationFrame(frame); frame = 0; }
@@ -480,6 +495,10 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
       cancelAnimationFrame(frame);
       observer?.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
+      videoElement.removeEventListener('play', schedule);
+      videoElement.removeEventListener('playing', schedule);
+      videoElement.removeEventListener('pause', onPause);
+      videoElement.removeEventListener('ended', onPause);
       context.clearRect(0, 0, canvas.width, canvas.height);
     };
   }, [nearViewport, playing, short]);
