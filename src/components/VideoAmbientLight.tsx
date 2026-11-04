@@ -78,7 +78,7 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
     place();
     const resize = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null;
     resize?.observe(host);
-    resize?.observe(parent);
+    resize?.observe(card);
     window.addEventListener('resize', place, { passive: true });
     window.addEventListener('scroll', place, { passive: true, capture: true });
     window.visualViewport?.addEventListener('resize', place, { passive: true });
