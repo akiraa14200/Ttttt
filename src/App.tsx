@@ -165,6 +165,7 @@ function SearchPage() {
 }
 function DetailPage({ user, id }: { user: User | null; id: string | undefined }) {
   const [anime, setAnime] = useState<Anime | null>(null);
+  const animeCache = useRef<Map<string, Anime>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -179,11 +180,16 @@ function DetailPage({ user, id }: { user: User | null; id: string | undefined })
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
+    const cached = animeCache.current.get(id);
+    if (cached) {
+      setAnime(cached); setLoading(false); setError('');
+      return;
+    }
     let active = true;
     setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
     const animeId = id;
     getAnime(animeId)
-      .then(data => { if (active) { setAnime(data); if (!data) setError('AniList could not find this entry.'); } })
+      .then(data => { if (active) { if (data) animeCache.current.set(animeId, data); setAnime(data); if (!data) setError('AniList could not find this entry.'); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
