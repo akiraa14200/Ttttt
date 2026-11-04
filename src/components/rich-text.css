@@ -1,0 +1,5 @@
+.rich-spoiler{border-radius:4px;padding:0 3px;background:#2a2838;color:transparent;cursor:pointer;transition:color .2s,background .2s;user-select:none}
+.rich-spoiler:not(.shown) *{color:transparent!important}
+.rich-spoiler:focus-visible{outline:2px solid #a99bff;outline-offset:1px}
+.rich-spoiler.shown{background:#ffffff0d;color:inherit;cursor:auto;user-select:auto}
+.rich-link{color:#b5aaff;text-decoration:underline;text-decoration-color:#b5aaff55;text-underline-offset:2px}

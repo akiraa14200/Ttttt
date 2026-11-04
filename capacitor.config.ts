@@ -2,11 +2,13 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.rykoccllection.animediscovery',
-  appName: 'RykocCllection',
+  appName: 'RykoCollection',
   webDir: 'dist',
   bundledWebRuntime: false,
+  backgroundColor: '#000000',
   android: {
-    allowMixedContent: false
+    allowMixedContent: false,
+    backgroundColor: '#000000'
   }
 };
 

@@ -12,7 +12,7 @@ export type AnimeCharacter = {
 };
 
 export type AnimeStaff = { role: string; node: { name: { full?: string } } };
-export type AnimeExternalLink = { url: string; site: string; type?: string };
+export type AnimeExternalLink = { url: string; site: string; type?: string; language?: string };
 export type Anime = {
   id: number;
   title: { romaji?: string; english?: string; native?: string };
@@ -28,6 +28,7 @@ export type Anime = {
   studios?: { nodes: { name: string }[] };
   duration?: number;
   siteUrl?: string;
+  chapters?: number;
   nextAiringEpisode?: { episode: number; airingAt: number };
   trailer?: { id: string; site: string };
   countryOfOrigin?: string;
@@ -45,7 +46,7 @@ export type Anime = {
 const endpoint = 'https://graphql.anilist.co';
 const fields = `
   id title { romaji english native } description(asHtml: false)
-  coverImage { extraLarge large color } bannerImage averageScore episodes
+  coverImage { extraLarge large color } bannerImage averageScore episodes chapters
   status seasonYear format genres duration countryOfOrigin siteUrl
   studios(isMain: true) { nodes { name } }
   nextAiringEpisode { episode airingAt }
@@ -55,7 +56,7 @@ const detailFields = `
   ${fields}
   countryOfOrigin source synonyms startDate { year month day }
   staff(sort: RELEVANCE, perPage: 35) { edges { role node { name { full } } } }
-  externalLinks { url site type }
+  externalLinks { url site type language }
   characters(page: 1, perPage: 50, sort: ROLE) {
     pageInfo { currentPage hasNextPage }
     edges {
@@ -168,6 +169,37 @@ export async function getVideoCatalogue(page = 1, genre?: string, mediaType: 'AN
   return data.Page?.media || [];
 }
 
+/**
+ * Anime + manga trailer pages in ONE GraphQL request (aliases) instead of two.
+ * AniList rate-limits per request, so batching keeps the Video tab fast and avoids 429s.
+ */
+export async function getTrailerCatalogue(page = 1): Promise<{ anime: Anime[]; manga: Anime[] }> {
+  const data = await query<{ anime: { media: Anime[] }; manga: { media: Anime[] } }>(
+    `query($page: Int) {
+      anime: Page(page: $page, perPage: 50) { media(type: ANIME, sort: TRENDING_DESC, isAdult: false) { ${fields} } }
+      manga: Page(page: $page, perPage: 50) { media(type: MANGA, sort: TRENDING_DESC, isAdult: false) { ${fields} } }
+    }`,
+    { page }
+  );
+  return { anime: data.anime?.media || [], manga: data.manga?.media || [] };
+}
+
+/** Every AniList list shown on Home, fetched in a single request. */
+export async function getHomeCollections(): Promise<{ trending: Anime[]; popular: Anime[]; trendingManga: Anime[]; popularManga: Anime[] }> {
+  const data = await query<Record<'trending' | 'popular' | 'trendingManga' | 'popularManga', { media: Anime[] }>>(
+    `query {
+      trending: Page(perPage: 12) { media(type: ANIME, sort: TRENDING_DESC, isAdult: false) { ${fields} } }
+      popular: Page(perPage: 12) { media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) { ${fields} } }
+      trendingManga: Page(perPage: 18) { media(type: MANGA, sort: TRENDING_DESC, isAdult: false) { ${fields} } }
+      popularManga: Page(perPage: 18) { media(type: MANGA, sort: POPULARITY_DESC, isAdult: false) { ${fields} } }
+    }`
+  );
+  return {
+    trending: data.trending?.media || [], popular: data.popular?.media || [],
+    trendingManga: data.trendingManga?.media || [], popularManga: data.popularManga?.media || []
+  };
+}
+
 export async function getMangaVideoCatalogue(page = 1, genre?: string): Promise<Anime[]> {
   return getVideoCatalogue(page, genre, 'MANGA');
 }
@@ -192,8 +224,11 @@ export async function searchMedia(
   status?: string,
   format?: string,
   mediaType?: 'ANIME' | 'MANGA',
-  country?: 'KR' | 'CN'
+  country?: 'KR' | 'CN',
+  sort?: string
 ): Promise<Anime[]> {
+  const validSorts = ['POPULARITY_DESC','TRENDING_DESC','SCORE_DESC','START_DATE_DESC','FAVOURITES_DESC'];
+  const chosenSort = sort && validSorts.includes(sort) ? sort : '';
   const validFormats = ['TV','TV_SHORT','MOVIE','SPECIAL','OVA','ONA','MUSIC','MANGA','NOVEL','ONE_SHOT'];
   const apiFormat = format && validFormats.includes(format) ? format : undefined;
   const data = await query<{ Page: { media: Anime[] } }>(
@@ -210,7 +245,7 @@ export async function searchMedia(
       format: apiFormat,
       type: mediaType,
       country,
-      sort: search.trim() ? ['SEARCH_MATCH'] : ['POPULARITY_DESC']
+      sort: chosenSort ? (search.trim() ? [chosenSort, 'SEARCH_MATCH'] : [chosenSort]) : (search.trim() ? ['SEARCH_MATCH'] : ['POPULARITY_DESC'])
     }
   );
   return data.Page?.media || [];

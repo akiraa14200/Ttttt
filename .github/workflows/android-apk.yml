@@ -3,13 +3,16 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, ryko-collection-catalogue-app, Ryko]
+    branches: [main, Ryko]
     paths:
       - 'src/**'
       - 'package.json'
       - 'package-lock.json'
       - 'capacitor.config.ts'
       - 'index.html'
+      - 'public/**'
+      - 'branding/**'
+      - 'scripts/**'
       - '.github/workflows/android-apk.yml'
 
 permissions:
@@ -41,6 +44,16 @@ jobs:
 
       - name: Generate Android project
         run: npx cap add android
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply RykoCollection app icon and splash
+        run: |
+          python -m pip install --quiet pillow
+          python scripts/android-branding.py
 
       - name: Allow one-tap media playback in Android WebView
         run: |
@@ -81,7 +94,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RykocCllection-Android-debug-APK
+          name: RykoCollection-Android-debug-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

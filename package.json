@@ -1,5 +1,5 @@
 {
-  "name": "rykoccllection-anime-discovery",
+  "name": "rykocollection-anime-discovery",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -10,20 +10,22 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/share": "^6.0.4",
+    "@supabase/supabase-js": "2.118.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.1",
-    "@capacitor/core": "^6.2.0",
-    "@capacitor/android": "^6.2.0",
-    "@supabase/supabase-js": "2.118.0"
+    "react-router-dom": "^6.28.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.2",
-    "vite": "^6.0.5",
-    "@capacitor/cli": "^6.2.0"
+    "vite": "^6.0.5"
   }
 }
