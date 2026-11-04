@@ -244,7 +244,8 @@ function DetailPage({ user }: { user: User | null }) {
             <span><Clock3 size={14}/> {anime.status?.replaceAll('_',' ') || 'Unknown status'}</span>
           </div>
           <div className="genre-tags">{anime.genres?.map(g=><span key={g}>{g}</span>)}</div>
-          <div className="hero-actions">\n            <button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button>
+          <div className="hero-actions">
+            <button className="primary-btn" onClick={start}><Play size={16} fill="currentColor"/> Open player</button>
             <button className="secondary-btn" onClick={()=>toggle(anime)}>{isSaved ? <Heart size={16} fill="currentColor"/> : <Bookmark size={16}/>} {isSaved ? 'In my list' : 'Add to list'}</button>
             {anime.siteUrl && <a className="secondary-btn" href={anime.siteUrl} target="_blank" rel="noreferrer">AniList <ExternalLink size={14}/></a>}
           </div>
