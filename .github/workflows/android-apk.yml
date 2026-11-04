@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, Ryko]
+    branches: [main, Ryko, ambient-video-light]
     paths:
       - 'src/**'
       - 'package.json'
