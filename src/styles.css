@@ -598,3 +598,5 @@ body{padding-bottom:104px}
 .yt-options-menu>button>span,.yt-options-menu>a>span{display:grid;place-items:center;width:20px;color:#c4b8ff}
 .yt-action-feedback{margin:5px 6px 4px;padding:8px;border-radius:7px;background:#ffffff0b;color:#bdb7d0;font-size:10px;line-height:1.5}
 @media(max-width:700px){.yt-options-menu{right:0;top:33px;width:190px}}
+
+.yt-short-card .yt-card-actions .yt-more,.yt-shorts-row .yt-card-actions .yt-more{display:grid}
