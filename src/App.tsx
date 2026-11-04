@@ -417,8 +417,8 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
   const thumbnail = videoThumbnail(video);
   const ambientCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // The canvas stays decorative and outside the thumbnail's clipping box so its
-  // compositor blur can spill behind the player without changing player layout.
+  // Sample local HTML5 media only. YouTube iframe playback is cross-origin,
+  // so its thumbnail is used as the ambient source while the player is open.
   useEffect(() => {
     const card = cardRef.current;
     const canvas = ambientCanvasRef.current;
@@ -426,35 +426,23 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
     const context = canvas.getContext('2d', { alpha: true });
     if (!context) return;
 
+    const width = short ? 90 : 160;
+    const height = short ? 160 : 90;
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+
+    const videoElement = card.querySelector('video');
+    if (!videoElement) return;
+
     let frame = 0;
     let lastDraw = 0;
     let visible = document.visibilityState === 'visible';
-    let inViewport = false;
+    let inViewport = true;
     let disposed = false;
-    const videoElement = card.querySelector('video');
-    // YouTube iframes are cross-origin: their thumbnail supplies the CSS glow,
-    // while this sampling loop is reserved for accessible local HTML5 video.
-    if (!videoElement) return;
-    const resize = () => {
-      const width = short ? 90 : 160;
-      const height = short ? 160 : 90;
-      if (canvas.width !== width) canvas.width = width;
-      if (canvas.height !== height) canvas.height = height;
-    };
-    resize();
-
-    const observer = 'IntersectionObserver' in window
-      ? new IntersectionObserver(entries => {
-          inViewport = entries.some(entry => entry.isIntersecting);
-          if (!inViewport) stop();
-          else schedule();
-        }, { rootMargin: '100px' })
-      : null;
-    observer?.observe(card);
-    inViewport = !observer;
+    let observer: IntersectionObserver | undefined;
 
     const stop = () => {
-      cancelAnimationFrame(frame);
+      if (frame) cancelAnimationFrame(frame);
       frame = 0;
     };
     const draw = (time: number) => {
@@ -465,9 +453,9 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
       if (time - lastDraw >= 40 && videoElement.readyState >= 2) {
         lastDraw = time;
         try {
-          context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+          context.drawImage(videoElement, 0, 0, width, height);
         } catch {
-          // Cross-origin media may forbid sampling; keep the thumbnail glow.
+          // Keep the CSS thumbnail glow if the source is not canvas-readable.
         }
       }
       frame = requestAnimationFrame(draw);
@@ -477,36 +465,50 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
         frame = requestAnimationFrame(draw);
       }
     };
-    const onPause = () => stop();
+    const onPause = () => {
+      stop();
+      context.clearRect(0, 0, width, height);
+    };
+    const onVisibility = () => {
+      visible = document.visibilityState === 'visible';
+      if (!visible) onPause();
+      else schedule();
+    };
+
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver(entries => {
+        inViewport = entries.some(entry => entry.isIntersecting);
+        if (!inViewport) onPause();
+        else schedule();
+      }, { rootMargin: '100px' });
+      observer.observe(card);
+    }
     videoElement.addEventListener('play', schedule);
     videoElement.addEventListener('playing', schedule);
     videoElement.addEventListener('pause', onPause);
     videoElement.addEventListener('ended', onPause);
-    const onVisibility = () => {
-      visible = document.visibilityState === 'visible';
-      if (!visible) stop();
-      else schedule();
-    };
     document.addEventListener('visibilitychange', onVisibility);
     schedule();
 
     return () => {
       disposed = true;
-      cancelAnimationFrame(frame);
+      stop();
       observer?.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
       videoElement.removeEventListener('play', schedule);
       videoElement.removeEventListener('playing', schedule);
       videoElement.removeEventListener('pause', onPause);
       videoElement.removeEventListener('ended', onPause);
-      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.clearRect(0, 0, width, height);
     };
   }, [nearViewport, playing, short]);
 
   return <article ref={cardRef} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
     <canvas
       ref={ambientCanvasRef}
-      className={`yt-ambient-glow ${short?'yt-ambient-glow-short':''}`}
+      className={`yt-ambient-glow ${short?'yt-ambient-glow-short':''} ${playing?'yt-ambient-glow-active':''}`}
+      width={short ? 90 : 160}
+      height={short ? 160 : 90}
       aria-hidden="true"
       style={{ backgroundImage: thumbnail ? `url("${thumbnail}")` : 'none' }}
     />
