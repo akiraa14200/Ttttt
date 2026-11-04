@@ -178,9 +178,10 @@ function DetailPage({ user, id }: { user: User | null; id: string | undefined })
   const [source, setSource] = useState('');
 
   useEffect(() => {
+    if (!id) { setLoading(false); return; }
     let active = true;
     setLoading(true); setError(''); setAnime(null); setActiveTab('overview'); setSelectedCharacter(null); setCharacterPage(1);
-    const animeId = id || '';
+    const animeId = id;
     getAnime(animeId)
       .then(data => { if (active) { setAnime(data); if (!data) setError('AniList could not find this entry.'); } })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load anime metadata.'); })
@@ -866,23 +867,27 @@ export default function App() {
   }, [user]);
   const signOut = () => { void supabase.auth.signOut(); };
   const pathname = routeLocation.pathname;
+  const [visitedPaths, setVisitedPaths] = useState<string[]>(() => [pathname]);
+  useEffect(() => {
+    setVisitedPaths(previous => previous.includes(pathname) ? previous : [...previous, pathname]);
+  }, [pathname]);
   const detailMatch = pathname.match(/^\/anime\/([^/]+)\/?$/);
   const detailId = detailMatch ? decodeURIComponent(detailMatch[1]) : undefined;
-  const show = (active: boolean): React.CSSProperties => ({ display: active ? 'block' : 'none' });
+  const show = (active: boolean) => ({ display: active ? 'block' : 'none' });
   const knownRoute = pathname === '/' || pathname === '/search' || pathname === '/watchlist' ||
     pathname === '/video' || pathname === '/account' || pathname === '/privacy' ||
     pathname === '/extensions' || pathname === '/admin' || !!detailMatch;
   return <>
     <Header user={user} isAdmin={isAdmin} onSignOut={signOut}/>
-    <div style={show(pathname === '/')}><Home/></div>
-    <div style={show(pathname === '/search')}><SearchPage/></div>
-    <div style={show(!!detailMatch)}><DetailPage user={user} id={detailId}/></div>
-    <div style={show(pathname === '/watchlist')}><WatchlistPage/></div>
-    <div style={show(pathname === '/video')}><VideoPage/></div>
-    <div style={show(pathname === '/account')}><AccountPage user={user}/></div>
-    <div style={show(pathname === '/privacy')}><PrivacyPage/></div>
-    <div style={show(pathname === '/extensions')}><ExtensionPage/></div>
-    <div style={show(pathname === '/admin')}><AdminWorkspace/></div>
+    {visitedPaths.includes('/') && <div style={show(pathname === '/')}><Home/></div>}
+    {visitedPaths.includes('/search') && <div style={show(pathname === '/search')}><SearchPage/></div>}
+    {visitedPaths.some(path => /^\\/anime\\/[^/]+\\/?$/.test(path)) && <div style={show(!!detailMatch)}><DetailPage user={user} id={detailId}/></div>}
+    {visitedPaths.includes('/watchlist') && <div style={show(pathname === '/watchlist')}><WatchlistPage/></div>}
+    {visitedPaths.includes('/video') && <div style={show(pathname === '/video')}><VideoPage/></div>}
+    {visitedPaths.includes('/account') && <div style={show(pathname === '/account')}><AccountPage user={user}/></div>}
+    {visitedPaths.includes('/privacy') && <div style={show(pathname === '/privacy')}><PrivacyPage/></div>}
+    {visitedPaths.includes('/extensions') && <div style={show(pathname === '/extensions')}><ExtensionPage/></div>}
+    {visitedPaths.includes('/admin') && <div style={show(pathname === '/admin')}><AdminWorkspace/></div>}
     {!knownRoute && <main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}
     <BottomNavigation/>
     <footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer>
