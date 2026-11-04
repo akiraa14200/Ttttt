@@ -140,8 +140,9 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
       duplicate.removeEventListener('load', onFrameLoad);
       resize?.disconnect();
       layer.remove();
-      card.style.position = previousPosition;
-      card.style.zIndex = previousZIndex;
+      host.style.position = previousPosition;
+      host.style.isolation = previousIsolation;
+      host.style.overflow = previousOverflow;
     };
   }, [active, hostRef]);
 }
