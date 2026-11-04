@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft, Download, Share2, Flag, Check, BookmarkPlus } from 'lucide-react';
@@ -805,15 +805,31 @@ export default function App() {
   const routeLocation = useLocation();
   const [user, setUser] = useState<User | null>(null);
 
-  // Each route gets its own fresh viewport position. This prevents the shared
-  // document scroll offset from carrying over when switching bottom/nav tabs.
-  useEffect(() => {
+  // Keep an independent scroll position for every route (including search/filter URLs).
+  // This prevents one tab's scroll offset from affecting another and restores each
+  // page exactly where the user left it when switching between navigation tabs.
+  const routeScrollPositions = useRef<Map<string, number>>(new Map());
+  const routeScrollKey = routeLocation.pathname + routeLocation.search;
+  useLayoutEffect(() => {
     const root = document.documentElement;
     const previousBehavior = root.style.scrollBehavior;
     root.style.scrollBehavior = 'auto';
-    window.scrollTo(0, 0);
-    root.style.scrollBehavior = previousBehavior;
-  }, [routeLocation.pathname]);
+
+    const restorePosition = routeScrollPositions.current.get(routeScrollKey) ?? 0;
+    window.scrollTo(0, restorePosition);
+
+    const rememberPosition = () => {
+      routeScrollPositions.current.set(routeScrollKey, window.scrollY);
+    };
+    window.addEventListener('scroll', rememberPosition, { passive: true });
+
+    return () => {
+      // Capture the final position before leaving this route.
+      routeScrollPositions.current.set(routeScrollKey, window.scrollY);
+      window.removeEventListener('scroll', rememberPosition);
+      root.style.scrollBehavior = previousBehavior;
+    };
+  }, [routeScrollKey]);
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     let active = true;
