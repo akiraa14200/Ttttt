@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft, Download, Share2, Flag, Check, BookmarkPlus } from 'lucide-react';
 // The application UI and page components are defined below.
@@ -335,10 +336,99 @@ function DetailPage({ user }: { user: User | null }) {
 
 function WatchlistPage() {
   const { saved, toggle, statuses, setLibraryStatus } = useLibrary();
-  const groups: Array<'Watching' | 'Plan to Watch' | 'Completed' | 'Waiting'> = ['Watching', 'Plan to Watch', 'Completed', 'Waiting'];
-  return <main className="content-page"><div className="page-heading"><span className="eyebrow">YOUR PERSONAL COLLECTION</span><h1>Your <em>Library.</em></h1><p>Organize saved anime by your watch progress.</p></div>
-    {!saved.length ? <div className="empty-state"><Bookmark size={28}/><h3>Your library is waiting</h3><p>Save anime from Home or Browse and they will appear here.</p><Link className="primary-btn" to="/search">Discover anime</Link></div> :
-    groups.map(group => { const entries = saved.filter(item => (statuses[item.id] || 'Plan to Watch') === group); return <section className="section library-group" key={group}><div className="section-head"><div><h2>{group}</h2><p>{entries.length} {entries.length===1?'title':'titles'}</p></div></div>{entries.length ? <div className="anime-grid">{entries.map(item=><article className="anime-card" key={item.id}><Link to={`/anime/${item.id}`} className="poster-wrap"><img src={imageOf(item)} alt={titleOf(item)} loading="lazy"/></Link><div className="card-meta"><Link to={`/anime/${item.id}`} className="card-title">{titleOf(item)}</Link><select aria-label={`Status for ${titleOf(item)}`} value={statuses[item.id] || 'Plan to Watch'} onChange={event=>setLibraryStatus(item.id,event.target.value as typeof groups[number])}>{groups.map(status=><option key={status}>{status}</option>)}</select><button className="library-remove" onClick={()=>toggle(item)}>Remove from library</button></div></article>)}</div> : <p className="library-empty">No titles in this category yet.</p>}</section>; })}
+  const [tab, setTab] = useState<'anime'|'manga'|'video'>('anime');
+  const [term, setTerm] = useState('');
+  const [animeStatus, setAnimeStatus] = useState('All');
+  const [animeFormat, setAnimeFormat] = useState('All');
+  const [animeGenre, setAnimeGenre] = useState('All');
+  const [mangaStatus, setMangaStatus] = useState('All');
+  const [mangaGenre, setMangaGenre] = useState('All');
+  const [videoFormat, setVideoFormat] = useState('All');
+  const [videoPlatform, setVideoPlatform] = useState('All');
+  const [videoCategory, setVideoCategory] = useState('All');
+  const [savedVideos, setSavedVideos] = useState<RelatedVideo[]>(() => readStore<RelatedVideo[]>('ryko-saved-video-items', []));
+  const [mangaStatuses, setMangaStatuses] = useState<Record<string,string>>(() => readStore('rykoc-manga-library-status', {}));
+  const [playingId, setPlayingId] = useState<string|null>(null);
+  useEffect(() => localStorage.setItem('rykoc-manga-library-status', JSON.stringify(mangaStatuses)), [mangaStatuses]);
+  useEffect(() => {
+    const refresh = () => setSavedVideos(readStore<RelatedVideo[]>('ryko-saved-video-items', []));
+    window.addEventListener('ryko-saved-videos-changed', refresh);
+    window.addEventListener('storage', refresh);
+    return () => { window.removeEventListener('ryko-saved-videos-changed', refresh); window.removeEventListener('storage', refresh); };
+  }, []);
+  const isManga = (item: Anime) => ['manga','one_shot'].includes(String(item.format || '').toLowerCase());
+  const animeItems = saved.filter(item => !isManga(item));
+  const mangaItems = saved.filter(isManga);
+  const normal = (value?: string) => String(value || '').toLowerCase();
+  const matchesTitle = (title: string) => !term.trim() || normal(title).includes(normal(term.trim()));
+  const animeGenres = [...new Set(animeItems.flatMap(item => item.genres || []))].sort();
+  const mangaGenres = [...new Set(mangaItems.flatMap(item => item.genres || []))].sort();
+  const filteredAnime = animeItems.filter(item =>
+    matchesTitle(titleOf(item)) &&
+    (animeStatus === 'All' || (statuses[item.id] || 'Plan to Watch') === animeStatus) &&
+    (animeFormat === 'All' || normal(item.format) === normal(animeFormat)) &&
+    (animeGenre === 'All' || (item.genres || []).includes(animeGenre))
+  );
+  const filteredManga = mangaItems.filter(item =>
+    matchesTitle(titleOf(item)) &&
+    (mangaStatus === 'All' || (mangaStatuses[item.id] || 'Plan to Read') === mangaStatus) &&
+    (mangaGenre === 'All' || (item.genres || []).includes(mangaGenre))
+  );
+  const filteredVideos = savedVideos.filter(video =>
+    matchesTitle([video.videoTitle, video.creatorName, video.titleName].filter(Boolean).join(' ')) &&
+    (videoFormat === 'All' || detectVideoFormat(video.videoUrl) === (videoFormat === 'Shorts' ? 'short' : 'video')) &&
+    (videoPlatform === 'All' || normal(video.platform) === normal(videoPlatform)) &&
+    (videoCategory === 'All' || normal(video.titleFormat) === normal(videoCategory))
+  );
+  const removeSavedVideo = (video: RelatedVideo) => {
+    const next = savedVideos.filter(item => item.id !== video.id);
+    setSavedVideos(next);
+    localStorage.setItem('ryko-saved-video-items', JSON.stringify(next));
+    const ids = readStore<string[]>('ryko-saved-videos', []);
+    localStorage.setItem('ryko-saved-videos', JSON.stringify(ids.filter(id => id !== video.id)));
+    window.dispatchEvent(new Event('ryko-saved-videos-changed'));
+  };
+  const animeGroups: Array<'Watching'|'Plan to Watch'|'Completed'|'Waiting'> = ['Watching','Plan to Watch','Completed','Waiting'];
+  const mangaGroups = ['Reading','Plan to Read','Completed','Waiting'];
+  const select = (value: string, onChange: (value:string)=>void, options: string[], label: string) =>
+    <select className="library-filter" aria-label={label} value={value} onChange={event=>onChange(event.target.value)}>{options.map(option=><option key={option}>{option}</option>)}</select>;
+  return <main className="content-page library-page">
+    <div className="page-heading"><span className="eyebrow">YOUR PERSONAL COLLECTION</span><h1>Your <em>Library.</em></h1><p>Keep your anime, manga and saved videos together.</p></div>
+    <div className="library-tabs" role="tablist" aria-label="Library categories">
+      <button role="tab" aria-selected={tab==='anime'} className={tab==='anime'?'active':''} onClick={()=>setTab('anime')}><Tv size={16}/>Anime <span>{animeItems.length}</span></button>
+      <button role="tab" aria-selected={tab==='manga'} className={tab==='manga'?'active':''} onClick={()=>setTab('manga')}><Bookmark size={16}/>Manga <span>{mangaItems.length}</span></button>
+      <button role="tab" aria-selected={tab==='video'} className={tab==='video'?'active':''} onClick={()=>setTab('video')}><Play size={16}/>Video <span>{savedVideos.length}</span></button>
+    </div>
+    <div className="library-search-row">
+      <label className="library-search"><Search size={18}/><input value={term} onChange={event=>setTerm(event.target.value)} placeholder={tab==='video'?'Search videos, creators or titles':'Search your saved titles'} aria-label="Search library"/></label>
+      <button className="library-clear" onClick={()=>{setTerm('');setAnimeStatus('All');setAnimeFormat('All');setAnimeGenre('All');setMangaStatus('All');setMangaGenre('All');setVideoFormat('All');setVideoPlatform('All');setVideoCategory('All');}}>Reset</button>
+    </div>
+    {tab==='anime' && <>
+      <div className="library-filters">
+        {select(animeStatus,v=>setAnimeStatus(v),['All',...animeGroups],'Filter anime by watch status')}
+        {select(animeFormat,v=>setAnimeFormat(v),['All',...new Set(animeItems.map(item=>item.format).filter(Boolean) as string[])],'Filter anime by format')}
+        {select(animeGenre,v=>setAnimeGenre(v),['All',...animeGenres],'Filter anime by genre')}
+      </div>
+      {!filteredAnime.length ? <div className="empty-state library-tab-empty"><Bookmark size={26}/><h3>{animeItems.length?'No matching anime':'No saved anime yet'}</h3><p>{animeItems.length?'Try changing your search or filters.':'Save anime from Home or Browse to see them here.'}</p><Link className="primary-btn" to="/search">Discover anime</Link></div> :
+      animeGroups.map(group=>{const entries=filteredAnime.filter(item=>(statuses[item.id]||'Plan to Watch')===group);return <section className="section library-group" key={group}><div className="section-head"><div><h2>{group}</h2><p>{entries.length} {entries.length===1?'title':'titles'}</p></div></div>{entries.length?<div className="anime-grid">{entries.map(item=><article className="anime-card" key={item.id}><Link to={`/anime/${item.id}`} className="poster-wrap"><img src={imageOf(item)} alt={titleOf(item)} loading="lazy"/></Link><div className="card-meta"><Link to={`/anime/${item.id}`} className="card-title">{titleOf(item)}</Link><select aria-label={`Status for ${titleOf(item)}`} value={statuses[item.id]||'Plan to Watch'} onChange={event=>setLibraryStatus(item.id,event.target.value as typeof animeGroups[number])}>{animeGroups.map(status=><option key={status}>{status}</option>)}</select><button className="library-remove" onClick={()=>toggle(item)}>Remove from library</button></div></article>)}</div>:<p className="library-empty">No titles in this category.</p>}</section>;})}
+    </>}
+    {tab==='manga' && <>
+      <div className="library-filters">
+        {select(mangaStatus,v=>setMangaStatus(v),['All',...mangaGroups],'Filter manga by reading status')}
+        {select(mangaGenre,v=>setMangaGenre(v),['All',...mangaGenres],'Filter manga by genre')}
+      </div>
+      {!filteredManga.length ? <div className="empty-state library-tab-empty"><Bookmark size={26}/><h3>{mangaItems.length?'No matching manga':'No saved manga yet'}</h3><p>{mangaItems.length?'Try changing your search or filters.':'Save manga from Browse to see them here.'}</p><Link className="primary-btn" to="/search">Discover manga</Link></div> :
+      mangaGroups.map(group=>{const entries=filteredManga.filter(item=>(mangaStatuses[item.id]||'Plan to Read')===group);return <section className="section library-group" key={group}><div className="section-head"><div><h2>{group}</h2><p>{entries.length} {entries.length===1?'title':'titles'}</p></div></div>{entries.length?<div className="anime-grid">{entries.map(item=><article className="anime-card" key={item.id}><Link to={`/anime/${item.id}`} className="poster-wrap"><img src={imageOf(item)} alt={titleOf(item)} loading="lazy"/></Link><div className="card-meta"><Link to={`/anime/${item.id}`} className="card-title">{titleOf(item)}</Link><select aria-label={`Reading status for ${titleOf(item)}`} value={mangaStatuses[item.id]||'Plan to Read'} onChange={event=>setMangaStatuses(old=>({...old,[item.id]:event.target.value}))}>{mangaGroups.map(status=><option key={status}>{status}</option>)}</select><button className="library-remove" onClick={()=>toggle(item)}>Remove from library</button></div></article>)}</div>:<p className="library-empty">No titles in this category.</p>}</section>;})}
+    </>}
+    {tab==='video' && <>
+      <div className="library-filters">
+        {select(videoFormat,v=>setVideoFormat(v),['All','Videos','Shorts'],'Filter saved video format')}
+        {select(videoPlatform,v=>setVideoPlatform(v),['All','youtube','instagram','dailymotion'],'Filter by video platform')}
+        {select(videoCategory,v=>setVideoCategory(v),['All',...new Set(savedVideos.map(item=>item.titleFormat).filter(Boolean) as string[])],'Filter by linked title category')}
+      </div>
+      {!filteredVideos.length ? <div className="empty-state library-tab-empty"><Play size={26}/><h3>{savedVideos.length?'No matching videos':'No saved videos yet'}</h3><p>{savedVideos.length?'Try changing your search or filters.':'Use the three-dot menu on a video and choose Save.'}</p><Link className="primary-btn" to="/video">Explore videos</Link></div> :
+      <div className="library-video-grid">{filteredVideos.map(video=><div className="library-video-item" key={video.id}><LazyVideoCard video={video} short={detectVideoFormat(video.videoUrl)==='short'} playing={playingId===video.id} onPlay={()=>setPlayingId(current=>current===video.id?null:video.id)}/><button className="library-remove" onClick={()=>removeSavedVideo(video)}>Remove from library</button></div>)}</div>}
+    </>}
   </main>;
 }
 function videoEmbedUrl(video: RelatedVideo) {
@@ -399,8 +489,42 @@ function detectVideoFormat(url:string) {
 }
 function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo; short: boolean; playing: boolean; onPlay: () => void }) {
   const cardRef = useRef<HTMLElementTagNameMap['article'] | null>(null);
+  const actionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const menuPortalRef = useRef<HTMLDivElement | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const toggleMenu = () => {
+    if (menuOpen) { setMenuOpen(false); return; }
+    const rect = actionButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 205, height = 198;
+    const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width));
+    let top = rect.bottom + 7;
+    if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 7);
+    setMenuPosition({ top, left });
+    setActionMessage('');
+    setMenuOpen(true);
+  };
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!menuPortalRef.current?.contains(target) && !actionButtonRef.current?.contains(target)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    const closeOnScroll = () => setMenuOpen(false);
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('resize', closeOnScroll);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('resize', closeOnScroll);
+    };
+  }, [menuOpen]);
   const [saved, setSaved] = useState(() => { try { return (JSON.parse(localStorage.getItem('ryko-saved-videos') || '[]') as string[]).includes(video.id); } catch { return false; } });
   const [actionMessage, setActionMessage] = useState('');
   const saveVideo = () => {
@@ -411,6 +535,7 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
       const savedItems = JSON.parse(localStorage.getItem('ryko-saved-video-items') || '[]') as RelatedVideo[];
       const nextItems = saved ? savedItems.filter(item => item.id !== video.id) : [video, ...savedItems.filter(item => item.id !== video.id)];
       localStorage.setItem('ryko-saved-video-items', JSON.stringify(nextItems));
+      window.dispatchEvent(new Event('ryko-saved-videos-changed'));
       setSaved(!saved);
       setActionMessage(saved ? 'Removed from saved videos.' : 'Saved on this device.');
     } catch { setActionMessage('Could not save this video.'); }
@@ -452,7 +577,7 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
   const thumbnail = videoThumbnail(video);
 
 
-  return <article ref={cardRef} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
+  return <><article ref={cardRef} className={`yt-video-card ${short?'yt-short-card':'yt-standard-card'}`}>
     {!nearViewport ? <>
       <div className="yt-thumbnail"><div className="yt-skeleton-thumb"/></div>
       <div className="yt-video-info"><span className="yt-skeleton-avatar"/><div className="yt-video-text"><span className="yt-skeleton-line"/><span className="yt-skeleton-line"/></div></div>
@@ -470,18 +595,19 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
         {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy" decoding="async"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
         <div className="yt-video-text"><h3>{(video.videoTitle||video.titleName||'Related video').length>50?(video.videoTitle||video.titleName||'Related video').slice(0,47).trimEnd()+'…':video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
         <div className="yt-card-actions">
-          <button className="yt-more" onClick={() => { setMenuOpen(value => !value); setActionMessage(''); }} aria-label="Video options" aria-expanded={menuOpen}><span>•••</span></button>
-          {menuOpen && <div className="yt-options-menu" role="menu">
-            <button role="menuitem" onClick={saveVideo}><span>{saved ? <Check size={16}/> : <BookmarkPlus size={16}/>}</span>{saved ? 'Saved' : 'Save'}</button>
-            <button role="menuitem" onClick={() => { void shareVideo(); setMenuOpen(false); }}><span><Share2 size={16}/></span>Share</button>
-            <button role="menuitem" onClick={downloadVideo}><span><Download size={16}/></span>Download</button>
-            <a role="menuitem" href={video.videoUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}><span><Flag size={16}/></span>Report on source</a>
-            {actionMessage && <p className="yt-action-feedback" role="status">{actionMessage}</p>}
-          </div>}
+          <button ref={actionButtonRef} className="yt-more" onClick={toggleMenu} aria-label="Video options" aria-expanded={menuOpen} aria-haspopup="menu"><span>•••</span></button>
         </div>
       </div>
     </>}
-  </article>;
+  </article>
+  {menuOpen && createPortal(<div ref={menuPortalRef} className="yt-options-menu yt-options-menu-portal" role="menu" style={{ top: menuPosition.top, left: menuPosition.left }}>
+    <button role="menuitem" onClick={saveVideo}><span>{saved ? <Check size={16}/> : <BookmarkPlus size={16}/>}</span>{saved ? 'Saved' : 'Save'}</button>
+    <button role="menuitem" onClick={() => { void shareVideo(); setMenuOpen(false); }}><span><Share2 size={16}/></span>Share</button>
+    <button role="menuitem" onClick={downloadVideo}><span><Download size={16}/></span>Download</button>
+    <a role="menuitem" href={video.videoUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}><span><Flag size={16}/></span>Report on source</a>
+    {actionMessage && <p className="yt-action-feedback" role="status">{actionMessage}</p>}
+  </div>, document.body)}
+  </>;
 }
 
 function VideoPage() {

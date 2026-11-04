@@ -600,3 +600,28 @@ body{padding-bottom:104px}
 @media(max-width:700px){.yt-options-menu{right:0;top:33px;width:190px}}
 
 .yt-short-card .yt-card-actions .yt-more,.yt-shorts-row .yt-card-actions .yt-more{display:grid}
+
+/* Library tabs, search and contextual filters */
+.library-page{max-width:1180px}
+.library-tabs{display:flex;gap:8px;margin:22px 0 16px;padding:5px;border:1px solid #ffffff16;border-radius:13px;background:#ffffff06;width:max-content;max-width:100%}
+.library-tabs button{display:flex;align-items:center;gap:8px;padding:10px 15px;border:0;border-radius:9px;background:transparent;color:#aaa;font-size:12px;font-weight:650;cursor:pointer}
+.library-tabs button.active{background:#ffffff16;color:#fff}
+.library-tabs button span{min-width:19px;padding:2px 5px;border-radius:20px;background:#ffffff12;color:#c8c0e7;font-size:10px;text-align:center}
+.library-search-row{display:flex;gap:9px;align-items:center;margin:0 0 12px}
+.library-search{display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:0 13px;height:44px;border:1px solid #ffffff1a;border-radius:11px;background:#ffffff08;color:#999}
+.library-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#fff;font:inherit;font-size:13px}
+.library-clear{height:42px;padding:0 14px;border:1px solid #ffffff1a;border-radius:10px;background:#ffffff08;color:#bbb;font-size:11px;cursor:pointer}
+.library-filters{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 22px}
+.library-filter{min-width:140px;max-width:220px;height:38px;padding:0 30px 0 11px;border:1px solid #ffffff1a;border-radius:9px;background:#17171d;color:#ddd;font-size:11px}
+.library-tab-empty{margin-top:20px}
+.library-video-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 18px}
+.library-video-item{min-width:0}
+.library-video-item>.library-remove{margin:4px 0 0 50px}
+.yt-options-menu-portal{position:fixed;z-index:99999;width:205px;max-height:min(240px,calc(100dvh - 16px));overflow-y:auto;padding:6px;border:1px solid #ffffff25;border-radius:13px;background:#202027;box-shadow:0 18px 55px #000c;display:grid;gap:2px}
+@media(max-width:700px){
+ .library-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
+ .library-tabs button{justify-content:center;padding:10px 6px;font-size:11px}
+ .library-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .library-filter{width:100%;min-width:0;max-width:none}
+ .library-video-grid{grid-template-columns:1fr}
+}
