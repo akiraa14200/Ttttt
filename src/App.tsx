@@ -629,7 +629,18 @@ function PrivacyPage() {
 }
 
 export default function App() {
+  const routeLocation = useLocation();
   const [user, setUser] = useState<User | null>(null);
+
+  // Each route gets its own fresh viewport position. This prevents the shared
+  // document scroll offset from carrying over when switching bottom/nav tabs.
+  useEffect(() => {
+    const root = document.documentElement;
+    const previousBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 0);
+    root.style.scrollBehavior = previousBehavior;
+  }, [routeLocation.pathname]);
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     let active = true;
