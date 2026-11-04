@@ -588,3 +588,13 @@ body{padding-bottom:104px}
  .yt-skeleton-thumb:after,.yt-skeleton-line:after,.yt-skeleton-avatar:after{animation:none}
 }
 
+
+/* Expandable video-card action menu */
+.yt-card-actions{position:relative;flex:0 0 30px;align-self:flex-start}
+.yt-card-actions .yt-more{width:30px;height:30px}
+.yt-options-menu{position:absolute;z-index:50;right:0;top:35px;width:205px;padding:6px;border:1px solid #ffffff1c;border-radius:13px;background:#202027;box-shadow:0 16px 42px #0009;display:grid;gap:2px}
+.yt-options-menu>button,.yt-options-menu>a{display:flex;align-items:center;gap:11px;width:100%;min-height:39px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:#eee;text-align:left;font:500 12px inherit;text-decoration:none;cursor:pointer}
+.yt-options-menu>button:hover,.yt-options-menu>a:hover{background:#ffffff12}
+.yt-options-menu>button>span,.yt-options-menu>a>span{display:grid;place-items:center;width:20px;color:#c4b8ff}
+.yt-action-feedback{margin:5px 6px 4px;padding:8px;border-radius:7px;background:#ffffff0b;color:#bdb7d0;font-size:10px;line-height:1.5}
+@media(max-width:700px){.yt-options-menu{right:0;top:33px;width:190px}}

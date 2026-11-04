@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft } from 'lucide-react';
+import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft, Download, Share2, Flag, Check, BookmarkPlus } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
 import type { User } from '@supabase/supabase-js';
@@ -400,6 +400,41 @@ function detectVideoFormat(url:string) {
 function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo; short: boolean; playing: boolean; onPlay: () => void }) {
   const cardRef = useRef<HTMLElementTagNameMap['article'] | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [saved, setSaved] = useState(() => { try { return (JSON.parse(localStorage.getItem('ryko-saved-videos') || '[]') as string[]).includes(video.id); } catch { return false; } });
+  const [actionMessage, setActionMessage] = useState('');
+  const saveVideo = () => {
+    try {
+      const ids = JSON.parse(localStorage.getItem('ryko-saved-videos') || '[]') as string[];
+      const next = saved ? ids.filter(id => id !== video.id) : [...ids.filter(id => id !== video.id), video.id];
+      localStorage.setItem('ryko-saved-videos', JSON.stringify(next));
+      setSaved(!saved);
+      setActionMessage(saved ? 'Removed from saved videos.' : 'Saved on this device.');
+    } catch { setActionMessage('Could not save this video.'); }
+  };
+  const shareVideo = async () => {
+    try {
+      if (navigator.share) await navigator.share({ title: video.videoTitle || 'Ryko video', url: video.videoUrl });
+      else { await navigator.clipboard.writeText(video.videoUrl); setActionMessage('Video link copied.'); }
+    } catch (error) {
+      if (!(error instanceof Error && error.name === 'AbortError')) setActionMessage('Sharing is unavailable on this device.');
+    }
+  };
+  const downloadVideo = () => {
+    if (!/\\.(mp4|webm|mov|m4v)(?:$|[?#])/i.test(video.videoUrl)) {
+      setActionMessage('This source does not provide an in-app download. Open the original video for provider options.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = video.videoUrl;
+    link.download = (video.videoTitle || 'ryko-video').replace(/[^a-z0-9-_]+/gi, '-');
+    link.rel = 'noopener';
+    document.body.appendChild(link); link.click(); link.remove();
+    setActionMessage('Download requested. Your browser may depend on the video host.');
+  };
+  const reportVideo = () => {
+    setActionMessage('Use the original video provider’s Report option to submit a report.');
+  };
   useEffect(() => {
     const node = cardRef.current;
     if (!node) return;
@@ -434,7 +469,16 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
       <div className="yt-video-info">
         {video.creatorAvatarUrl?<img className="yt-channel-avatar" src={video.creatorAvatarUrl} alt="" loading="lazy" decoding="async"/>:<span className="yt-channel-avatar yt-avatar-fallback">{(video.creatorName||video.titleName||'R').slice(0,1).toUpperCase()}</span>}
         <div className="yt-video-text"><h3>{(video.videoTitle||video.titleName||'Related video').length>50?(video.videoTitle||video.titleName||'Related video').slice(0,47).trimEnd()+'…':video.videoTitle||video.titleName||'Related video'}</h3><p>{video.creatorName||'Ryko Collection'}</p><p>{video.titleName||'Ryko video catalogue'}</p>{video.actionUrl&&<a className="yt-related" href={video.actionUrl} target="_blank" rel="noopener noreferrer">{video.actionType==='read'?'View title':'Related link'} <ExternalLink size={11}/></a>}</div>
-        <button className="yt-more" onClick={onPlay} aria-label={playing?'Close player':'Play video'}>{playing?<X size={20}/>:<span>•••</span>}</button>
+        <div className="yt-card-actions">
+          <button className="yt-more" onClick={() => { setMenuOpen(value => !value); setActionMessage(''); }} aria-label="Video options" aria-expanded={menuOpen}><span>•••</span></button>
+          {menuOpen && <div className="yt-options-menu" role="menu">
+            <button role="menuitem" onClick={saveVideo}><span>{saved ? <Check size={16}/> : <BookmarkPlus size={16}/>}</span>{saved ? 'Saved' : 'Save'}</button>
+            <button role="menuitem" onClick={() => { void shareVideo(); setMenuOpen(false); }}><span><Share2 size={16}/></span>Share</button>
+            <button role="menuitem" onClick={downloadVideo}><span><Download size={16}/></span>Download</button>
+            <button role="menuitem" onClick={reportVideo}><span><Flag size={16}/></span>Report</button>
+            {actionMessage && <p className="yt-action-feedback" role="status">{actionMessage}</p>}
+          </div>}
+        </div>
       </div>
     </>}
   </article>;
