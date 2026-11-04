@@ -346,7 +346,7 @@ export const cleanDescription = (value = '') => value.replace(/<[^>]*>/g, ' ').r
 const videoMetadataCache = new Map<string, Partial<RelatedVideo>>();
 const videoMetadataPending = new Map<string, Promise<void>>();
 export async function enrichVideoMetadata(videos: RelatedVideo[]): Promise<RelatedVideo[]> {
-  const youtubeVideos = videos.filter(video => /youtu\\.be|youtube(?:-nocookie)?\\.com/i.test(video.videoUrl));
+  const youtubeVideos = videos.filter(video => /youtu\.be|youtube(?:-nocookie)?\.com/i.test(video.videoUrl));
   const missing = youtubeVideos.filter(video => !videoMetadataCache.has(video.videoUrl) && !videoMetadataPending.has(video.videoUrl));
   if (missing.length) {
     const task = (async () => {
