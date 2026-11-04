@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, Route, Routes, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Compass, Bookmark, ShieldCheck, Play, Star, ChevronRight, ArrowLeft, Heart, Clock3, Menu, X, ExternalLink, Sparkles, Tv, Info, Users, FileText, Globe, Youtube, ChevronDown, RotateCw, MessageCircle, Puzzle, Home as HomeIcon, UserRound, ChevronLeft, Download, Share2, Flag, Check, BookmarkPlus } from 'lucide-react';
 // The application UI and page components are defined below.
 import { Anime, AnimeCharacter, cleanDescription, getAnime, getAnimeCharacters, getPopular, getPopularManga, getSeasonal, getTrending, getTrendingManga, getRelatedVideos, enrichVideoMetadata, RelatedVideo, imageOf, searchAnime, titleOf } from './lib/catalogue';
@@ -163,8 +163,7 @@ function SearchPage() {
       <div className="empty-state"><Search size={28}/><h3>No anime or manga found</h3><p>Try another title or choose a different filter.</p></div>}
   </main>;
 }
-function DetailPage({ user }: { user: User | null }) {
-  const { id } = useParams();
+function DetailPage({ user, id }: { user: User | null; id: string | undefined }) {
   const [anime, setAnime] = useState<Anime | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -866,5 +865,26 @@ export default function App() {
     return () => { active = false; };
   }, [user]);
   const signOut = () => { void supabase.auth.signOut(); };
-  return <><Header user={user} isAdmin={isAdmin} onSignOut={signOut}/><Routes><Route path="/" element={<Home/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/anime/:id" element={<DetailPage user={user}/>}/><Route path="/watchlist" element={<WatchlistPage/>}/><Route path="/video" element={<VideoPage/>}/><Route path="/account" element={<AccountPage user={user}/>}/><Route path="/privacy" element={<PrivacyPage/>}/><Route path="/extensions" element={<ExtensionPage/>}/><Route path="/admin" element={<AdminWorkspace/>}/><Route path="*" element={<main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}/></Routes><BottomNavigation/><footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer></>;
+  const pathname = routeLocation.pathname;
+  const detailMatch = pathname.match(/^\\/anime\\/([^/]+)\\/?$/);
+  const detailId = detailMatch ? decodeURIComponent(detailMatch[1]) : undefined;
+  const show = (active: boolean): React.CSSProperties => ({ display: active ? 'block' : 'none' });
+  const knownRoute = pathname === '/' || pathname === '/search' || pathname === '/watchlist' ||
+    pathname === '/video' || pathname === '/account' || pathname === '/privacy' ||
+    pathname === '/extensions' || pathname === '/admin' || !!detailMatch;
+  return <>
+    <Header user={user} isAdmin={isAdmin} onSignOut={signOut}/>
+    <div style={show(pathname === '/')}><Home/></div>
+    <div style={show(pathname === '/search')}><SearchPage/></div>
+    <div style={show(!!detailMatch)}><DetailPage user={user} id={detailId}/></div>
+    <div style={show(pathname === '/watchlist')}><WatchlistPage/></div>
+    <div style={show(pathname === '/video')}><VideoPage/></div>
+    <div style={show(pathname === '/account')}><AccountPage user={user}/></div>
+    <div style={show(pathname === '/privacy')}><PrivacyPage/></div>
+    <div style={show(pathname === '/extensions')}><ExtensionPage/></div>
+    <div style={show(pathname === '/admin')}><AdminWorkspace/></div>
+    {!knownRoute && <main className="content-page empty-state"><h1>Page not found</h1><Link to="/">Return home</Link></main>}
+    <BottomNavigation/>
+    <footer className="footer"><Link to="/" className="brand"><span className="brand-mark">K</span><span>RYKOCCLLECTION</span></Link><p>Discover stories. Find your next world.</p><span>Shared Ryko catalogue · Independent fan discovery project</span></footer>
+  </>;
 }
