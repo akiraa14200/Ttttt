@@ -866,7 +866,7 @@ export default function App() {
   }, [user]);
   const signOut = () => { void supabase.auth.signOut(); };
   const pathname = routeLocation.pathname;
-  const detailMatch = pathname.match(/^\\/anime\\/([^/]+)\\/?$/);
+  const detailMatch = pathname.match(/^\/anime\/([^/]+)\/?$/);
   const detailId = detailMatch ? decodeURIComponent(detailMatch[1]) : undefined;
   const show = (active: boolean): React.CSSProperties => ({ display: active ? 'block' : 'none' });
   const knownRoute = pathname === '/' || pathname === '/search' || pathname === '/watchlist' ||
