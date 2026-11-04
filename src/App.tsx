@@ -703,8 +703,10 @@ function VideoPage() {
         shortIndex+=count;
       }
     }
-    if(!recommendedRegular.length&&recommendedShorts.length){
-      blocks.push({kind:'shorts',items:recommendedShorts.slice(0,10)});
+    while(shortIndex<recommendedShorts.length){
+      const count=Math.min(10,recommendedShorts.length-shortIndex);
+      blocks.push({kind:'shorts',items:recommendedShorts.slice(shortIndex,shortIndex+count)});
+      shortIndex+=count;
     }
     return blocks;
   },[recommendedRegular,recommendedShorts]);
