@@ -446,7 +446,7 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
     const observer = 'IntersectionObserver' in window
       ? new IntersectionObserver(entries => {
           inViewport = entries.some(entry => entry.isIntersecting);
-          if (!inViewport) cancelAnimationFrame(frame);
+          if (!inViewport) stop();
           else schedule();
         }, { rootMargin: '100px' })
       : null;
@@ -484,7 +484,7 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
     videoElement.addEventListener('ended', onPause);
     const onVisibility = () => {
       visible = document.visibilityState === 'visible';
-      if (!visible) { cancelAnimationFrame(frame); frame = 0; }
+      if (!visible) stop();
       else schedule();
     };
     document.addEventListener('visibilitychange', onVisibility);
