@@ -408,6 +408,9 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
       const ids = JSON.parse(localStorage.getItem('ryko-saved-videos') || '[]') as string[];
       const next = saved ? ids.filter(id => id !== video.id) : [...ids.filter(id => id !== video.id), video.id];
       localStorage.setItem('ryko-saved-videos', JSON.stringify(next));
+      const savedItems = JSON.parse(localStorage.getItem('ryko-saved-video-items') || '[]') as RelatedVideo[];
+      const nextItems = saved ? savedItems.filter(item => item.id !== video.id) : [video, ...savedItems.filter(item => item.id !== video.id)];
+      localStorage.setItem('ryko-saved-video-items', JSON.stringify(nextItems));
       setSaved(!saved);
       setActionMessage(saved ? 'Removed from saved videos.' : 'Saved on this device.');
     } catch { setActionMessage('Could not save this video.'); }
@@ -431,9 +434,6 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
     link.rel = 'noopener';
     document.body.appendChild(link); link.click(); link.remove();
     setActionMessage('Download requested. Your browser may depend on the video host.');
-  };
-  const reportVideo = () => {
-    setActionMessage('Use the original video provider’s Report option to submit a report.');
   };
   useEffect(() => {
     const node = cardRef.current;
@@ -475,7 +475,7 @@ function LazyVideoCard({ video, short, playing, onPlay }: { video: RelatedVideo;
             <button role="menuitem" onClick={saveVideo}><span>{saved ? <Check size={16}/> : <BookmarkPlus size={16}/>}</span>{saved ? 'Saved' : 'Save'}</button>
             <button role="menuitem" onClick={() => { void shareVideo(); setMenuOpen(false); }}><span><Share2 size={16}/></span>Share</button>
             <button role="menuitem" onClick={downloadVideo}><span><Download size={16}/></span>Download</button>
-            <button role="menuitem" onClick={reportVideo}><span><Flag size={16}/></span>Report</button>
+            <a role="menuitem" href={video.videoUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}><span><Flag size={16}/></span>Report on source</a>
             {actionMessage && <p className="yt-action-feedback" role="status">{actionMessage}</p>}
           </div>}
         </div>
