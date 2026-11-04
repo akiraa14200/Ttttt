@@ -59,12 +59,21 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
     const previousPosition = host.style.position;
     const previousIsolation = host.style.isolation;
     const previousOverflow = host.style.overflow;
+    const previousForegroundPosition = foreground.style.position;
+    const previousForegroundZIndex = foreground.style.zIndex;
+    const previousForegroundIsolation = foreground.style.isolation;
     if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
     host.style.isolation = 'isolate';
     host.style.overflow = 'visible';
     layer.style.position = 'absolute';
     layer.style.zIndex = '0';
     host.insertBefore(layer, host.firstChild);
+    // Force the real iframe into the top foreground stacking layer. Do not rely
+    // on stylesheet selector order: inline z-index wins over inherited rules.
+    foreground.style.position = 'relative';
+    foreground.style.zIndex = '20';
+    foreground.style.isolation = 'isolate';
+    foreground.style.pointerEvents = 'auto';
 
     const place = () => {
       const h = host.getBoundingClientRect();
@@ -143,6 +152,9 @@ export function useVideoAmbientLight(hostRef: RefObject<HTMLElement>, active: bo
       host.style.position = previousPosition;
       host.style.isolation = previousIsolation;
       host.style.overflow = previousOverflow;
+      foreground.style.position = previousForegroundPosition;
+      foreground.style.zIndex = previousForegroundZIndex;
+      foreground.style.isolation = previousForegroundIsolation;
     };
   }, [active, hostRef]);
 }
