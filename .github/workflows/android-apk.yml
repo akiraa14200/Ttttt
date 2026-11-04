@@ -1,0 +1,87 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, ryko-collection-catalogue-app]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.ts'
+      - 'index.html'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Allow one-tap media playback in Android WebView
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          files = list(Path("android/app/src/main/java").rglob("MainActivity.java"))
+          if not files:
+              raise SystemExit("Generated Capacitor MainActivity.java was not found")
+          path = files[0]
+          source = path.read_text()
+          if "setMediaPlaybackRequiresUserGesture(false)" not in source:
+              method = """
+                @Override
+                public void onCreate(android.os.Bundle savedInstanceState) {
+                    super.onCreate(savedInstanceState);
+                    if (bridge != null && bridge.getWebView() != null) {
+                        bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+                    }
+                }
+              """
+              source = source.rstrip()
+              if not source.endswith("}"):
+                  raise SystemExit("Unexpected MainActivity.java structure")
+              source = source[:-1] + method + chr(10) + "}" + chr(10)
+              path.write_text(source)
+          print("Enabled first-tap media playback in", path)
+          PY
+
+      - name: Copy web assets into Android app
+        run: npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RykocCllection-Android-debug-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
