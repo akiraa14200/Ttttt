@@ -881,7 +881,7 @@ export default function App() {
     <Header user={user} isAdmin={isAdmin} onSignOut={signOut}/>
     {visitedPaths.includes('/') && <div style={show(pathname === '/')}><Home/></div>}
     {visitedPaths.includes('/search') && <div style={show(pathname === '/search')}><SearchPage/></div>}
-    {visitedPaths.some(path => /^\\/anime\\/[^/]+\\/?$/.test(path)) && <div style={show(!!detailMatch)}><DetailPage user={user} id={detailId}/></div>}
+    {visitedPaths.some(path => /^\/anime\/[^/]+\/?$/.test(path)) && <div style={show(!!detailMatch)}><DetailPage user={user} id={detailId}/></div>}
     {visitedPaths.includes('/watchlist') && <div style={show(pathname === '/watchlist')}><WatchlistPage/></div>}
     {visitedPaths.includes('/video') && <div style={show(pathname === '/video')}><VideoPage/></div>}
     {visitedPaths.includes('/account') && <div style={show(pathname === '/account')}><AccountPage user={user}/></div>}
