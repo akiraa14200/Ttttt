@@ -343,27 +343,40 @@ export const titleOf = (anime: Anime) => anime.title?.english || anime.title?.ro
 export const imageOf = (anime: Anime) => anime.coverImage?.extraLarge || anime.coverImage?.large || anime.bannerImage || '';
 export const cleanDescription = (value = '') => value.replace(/<[^>]*>/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#039;|&#39;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
 
+const videoMetadataCache = new Map<string, Partial<RelatedVideo>>();
+const videoMetadataPending = new Map<string, Promise<void>>();
 export async function enrichVideoMetadata(videos: RelatedVideo[]): Promise<RelatedVideo[]> {
-  const youtubeVideos = videos.filter(video => /youtu\.be|youtube(?:-nocookie)?\.com/i.test(video.videoUrl));
-  if (!youtubeVideos.length) return videos;
-  try {
-    const { data, error } = await supabase.functions.invoke('video-metadata', {
-      body: { urls: youtubeVideos.map(video => video.videoUrl) }
-    });
-    if (error) throw error;
-    const results = new Map<string, any>((data?.results || []).map((item: any) => [item.input, item]));
-    return videos.map(video => {
-      const meta = results.get(video.videoUrl);
-      if (!meta?.ok) return video;
-      return {
-        ...video,
-        videoTitle: meta.title || video.videoTitle,
-        creatorName: meta.channelName || video.creatorName,
-        creatorAvatarUrl: meta.channelAvatarUrl || video.creatorAvatarUrl
-      };
-    });
-  } catch (error) {
-    console.warn('Could not refresh YouTube video metadata:', error);
-    return videos;
+  const youtubeVideos = videos.filter(video => /youtu\\.be|youtube(?:-nocookie)?\\.com/i.test(video.videoUrl));
+  const missing = youtubeVideos.filter(video => !videoMetadataCache.has(video.videoUrl) && !videoMetadataPending.has(video.videoUrl));
+  if (missing.length) {
+    const task = (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('video-metadata', {
+          body: { urls: missing.map(video => video.videoUrl) }
+        });
+        if (error) throw error;
+        const results = new Map<string, any>((data?.results || []).map((item: any) => [item.input, item]));
+        missing.forEach(video => {
+          const meta = results.get(video.videoUrl);
+          videoMetadataCache.set(video.videoUrl, meta?.ok ? {
+            videoTitle: meta.title || video.videoTitle,
+            creatorName: meta.channelName || video.creatorName,
+            creatorAvatarUrl: meta.channelAvatarUrl || video.creatorAvatarUrl
+          } : {});
+        });
+      } catch (error) {
+        console.warn('Could not refresh YouTube video metadata:', error);
+      } finally {
+        missing.forEach(video => videoMetadataPending.delete(video.videoUrl));
+      }
+    })();
+    missing.forEach(video => videoMetadataPending.set(video.videoUrl, task));
+    await task;
   }
+  const pending = youtubeVideos.filter(video => videoMetadataPending.has(video.videoUrl));
+  if (pending.length) await Promise.all([...new Set(pending.map(video => videoMetadataPending.get(video.videoUrl)!))]);
+  return videos.map(video => {
+    const meta = videoMetadataCache.get(video.videoUrl);
+    return meta ? { ...video, ...meta } : video;
+  });
 }
